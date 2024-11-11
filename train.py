@@ -24,6 +24,7 @@ import time
 from copy import deepcopy
 from datetime import datetime, timedelta
 from pathlib import Path
+import wandb
 
 try:
     import comet_ml  # must be imported before torch (if installed)
@@ -37,6 +38,7 @@ import torch.nn as nn
 import yaml
 from torch.optim import lr_scheduler
 from tqdm import tqdm
+from scn_utlis import apply_rotation_augmentation, save_comparison_images
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -93,7 +95,7 @@ from utils.torch_utils import (
     smart_resume,
     torch_distributed_zero_first,
 )
-
+from scn_utlis import print_trainable_modules
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", -1))
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))
@@ -221,6 +223,7 @@ def train(hyp, opt, device, callbacks):
         LOGGER.info(f"Transferred {len(csd)}/{len(model.state_dict())} items from {weights}")  # report
     else:
         model = Model(cfg, ch=3, nc=nc, anchors=hyp.get("anchors")).to(device)  # create
+        print_trainable_modules(model)
     amp = check_amp(model)  # check AMP
 
     # Freeze
@@ -386,6 +389,17 @@ def train(hyp, opt, device, callbacks):
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
             callbacks.run("on_train_batch_start")
+
+            angle = 30.0
+            imgs, targets, paths = apply_rotation_augmentation(imgs, targets, paths, angle)
+            
+            # ---------------Have a look at one batch of transformed images---------------
+            # original_imgs = imgs.clone()
+            # original_targets = targets.clone()
+            # save_comparison_images(original_imgs, imgs, original_targets, targets, angle, save_dir='tmp_img')
+            # raise RuntimeError("stop here")
+            # ---------------Have a look at one batch of transformed images---------------
+        
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
@@ -632,6 +646,10 @@ def main(opt, callbacks=Callbacks()):
         For detailed usage, refer to:
         https://github.com/ultralytics/yolov5/tree/master/models
     """
+    run = wandb.init(project=f"yolov5_stanford_dogs", name=f"{opt.project}", entity="naguoyu", 
+               config={"dataset":"stanford_dogs"},
+               )
+    
     if RANK in {-1, 0}:
         print_args(vars(opt))
         check_git_status()
@@ -984,3 +1002,15 @@ def run(**kwargs):
 if __name__ == "__main__":
     opt = parse_opt()
     main(opt)
+
+# this is good
+# CUDA_VISIBLE_DEVICES=3 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 150 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 6 --batch-size 128 --patience 50 --device 3
+# with cos-lr
+# CUDA_VISIBLE_DEVICES=7 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 300 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 6 --batch-size 128 --cos-lr  --device 7
+# with patience
+# CUDA_VISIBLE_DEVICES=7 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 5 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7
+
+# naive
+# CUDA_VISIBLE_DEVICES=3 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --cache ram --optimizer Adam  --workers 6 --batch-size 128 --device 3
+# evolve for cos-lr
+# CUDA_VISIBLE_DEVICES=3 python train.py --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 10 --cache ram --optimizer Adam  --workers 6 --batch-size 128 --cos-lr --device 3 --evolve

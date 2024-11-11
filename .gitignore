@@ -36,7 +36,10 @@ data/images/*
 !data/*.sh
 
 results*.csv
-
+tmp_img
+YOLOv5_Stanford_Dogs_Naive
+naive
+evolve.sh
 # Datasets -------------------------------------------------------------------------------------------------------------
 coco/
 coco128/
