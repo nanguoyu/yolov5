@@ -390,8 +390,8 @@ def train(hyp, opt, device, callbacks):
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
             callbacks.run("on_train_batch_start")
 
-            angle = 30.0
-            imgs, targets, paths = apply_rotation_augmentation(imgs, targets, paths, angle)
+            # angle = 30.0
+            # imgs, targets, paths = apply_rotation_augmentation(imgs, targets, paths, angle)
             
             # ---------------Have a look at one batch of transformed images---------------
             # original_imgs = imgs.clone()
