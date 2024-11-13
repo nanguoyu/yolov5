@@ -389,9 +389,15 @@ def train(hyp, opt, device, callbacks):
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
             callbacks.run("on_train_batch_start")
-
-            # angle = 30.0
-            # imgs, targets, paths = apply_rotation_augmentation(imgs, targets, paths, angle)
+            if opt.test_angle is not None:
+                if isinstance(opt.test_angle, str):
+                    assert opt.test_angle == "random", f"If test_angle is a string, it must be 'random', got {opt.test_angle}"
+                    random_angle = random.randint(0, 360)
+                    imgs, targets, paths = apply_rotation_augmentation(imgs, targets, paths, random_angle)
+                else:
+                    assert isinstance(opt.test_angle, (int, float)), f"test_angle must be None, 'random', or a number, got {type(opt.test_angle)}"
+                    if float(opt.test_angle) != 0:
+                        imgs, targets, paths = apply_rotation_augmentation(imgs, targets, paths, float(opt.test_angle))
             
             # ---------------Have a look at one batch of transformed images---------------
             # original_imgs = imgs.clone()
@@ -480,6 +486,7 @@ def train(hyp, opt, device, callbacks):
                     plots=False,
                     callbacks=callbacks,
                     compute_loss=compute_loss,
+                    test_angle=opt.test_angle,
                 )
 
             # Update best mAP
@@ -626,6 +633,9 @@ def parse_opt(known=False):
     # NDJSON logging
     parser.add_argument("--ndjson-console", action="store_true", help="Log ndjson to console")
     parser.add_argument("--ndjson-file", action="store_true", help="Log ndjson to file")
+
+    # transformation arguments for SCN
+    parser.add_argument("--test-angle", type=str, default=None, help="test angle for rotation augmentation. Could be 'random' or a number")
 
     return parser.parse_known_args()[0] if known else parser.parse_args()
 
@@ -1009,6 +1019,7 @@ if __name__ == "__main__":
 # CUDA_VISIBLE_DEVICES=7 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 300 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 6 --batch-size 128 --cos-lr  --device 7
 # with patience
 # CUDA_VISIBLE_DEVICES=7 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 5 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7
+# CUDA_VISIBLE_DEVICES=7 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --test-angle random
 
 # naive
 # CUDA_VISIBLE_DEVICES=3 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --cache ram --optimizer Adam  --workers 6 --batch-size 128 --device 3

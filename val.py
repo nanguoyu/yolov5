@@ -29,7 +29,8 @@ from pathlib import Path
 import numpy as np
 import torch
 from tqdm import tqdm
-
+from scn_utlis import apply_rotation_augmentation, save_comparison_images
+import random
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -214,6 +215,7 @@ def run(
     plots=True,
     callbacks=Callbacks(),
     compute_loss=None,
+    test_angle=None,
 ):
     """
     Evaluates a YOLOv5 model on a dataset and logs performance metrics.
@@ -328,6 +330,17 @@ def run(
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
     for batch_i, (im, targets, paths, shapes) in enumerate(pbar):
         callbacks.run("on_val_batch_start")
+
+        if test_angle is not None:
+            if isinstance(test_angle, str):
+                assert test_angle == "random", f"If test_angle is a string, it must be 'random', got {test_angle}"
+                # apply random rotation augmentation
+                random_angle = random.randint(0, 360)
+                im, targets, paths = apply_rotation_augmentation(im, targets, paths, random_angle)
+            else:
+                assert isinstance(test_angle, (int, float)), f"test_angle must be None, 'random', or a number, got {type(test_angle)}"
+                # apply rotation augmentation
+                im, targets, paths = apply_rotation_augmentation(im, targets, paths, test_angle)
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)
