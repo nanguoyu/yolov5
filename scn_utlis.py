@@ -10,7 +10,7 @@ import os
 import cv2
 import numpy as np
 import random
-
+import json
 from models.common import (
     C3,
     C3SPP,
@@ -36,6 +36,13 @@ from models.common import (
     Proto,
 )
 
+def scn_config_praser(config_path):
+    print(f"Parsing config from {config_path}............")
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+        print(config)
+        print()
+    return config
 
 def print_trainable_modules(model: nn.Module):
     """
@@ -45,11 +52,11 @@ def print_trainable_modules(model: nn.Module):
         model (nn.Module): The PyTorch model to analyze.
     """
     for name, module in model.named_modules():
-        if isinstance(module, (C3, C3x, C3Ghost, C3TR, SPP, SPPF)):
+        if isinstance(module, (C3, Bottleneck, Conv, C3x, C3Ghost, C3TR, SPP, SPPF, Concat, nn.Upsample)):
             print(f"Module: {name}, Type: {type(module).__name__}")
         # Check if the module has any trainable parameters
-        if any(p.requires_grad for p in module.parameters(recurse=False)):
-            print(f"Module: {name}, Type: {type(module).__name__}")
+        # if any(p.requires_grad for p in module.parameters(recurse=False)):
+        #     print(f"Module: {name}, Type: {type(module).__name__}")
 
 
 
@@ -209,3 +216,8 @@ def apply_rotation_augmentation(imgs, targets, paths, angle):
     """
     rotated_imgs, rotated_targets = rotate_images_and_boxes(imgs, targets, angle)
     return rotated_imgs, rotated_targets, paths
+
+def transform_angle(angle):
+    cos = math.cos(angle / 180 * math.pi)
+    sin = math.sin(angle / 180 * math.pi)
+    return torch.Tensor([cos, sin])

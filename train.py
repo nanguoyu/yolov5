@@ -38,7 +38,8 @@ import torch.nn as nn
 import yaml
 from torch.optim import lr_scheduler
 from tqdm import tqdm
-from scn_utlis import apply_rotation_augmentation, save_comparison_images
+from scn_utlis import apply_rotation_augmentation, save_comparison_images, scn_config_praser, transform_angle
+from scn import SCN, ScnLayer
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -101,7 +102,7 @@ RANK = int(os.getenv("RANK", -1))
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))
 GIT_INFO = check_git_info()
 
-
+cos = nn.CosineSimilarity(dim=0, eps=1e-6)
 def train(hyp, opt, device, callbacks):
     """
     Train a YOLOv5 model on a custom dataset using specified hyperparameters, options, and device, managing datasets,
@@ -207,6 +208,7 @@ def train(hyp, opt, device, callbacks):
     nc = 1 if single_cls else int(data_dict["nc"])  # number of classes
     names = {0: "item"} if single_cls and len(data_dict["names"]) != 1 else data_dict["names"]  # class names
     is_coco = isinstance(val_path, str) and val_path.endswith("coco/val2017.txt")  # COCO dataset
+    scn_config = scn_config_praser(opt.scn_config) if opt.scn else None
 
     # Model
     check_suffix(weights, ".pt")  # check weights
@@ -223,9 +225,18 @@ def train(hyp, opt, device, callbacks):
         LOGGER.info(f"Transferred {len(csd)}/{len(model.state_dict())} items from {weights}")  # report
     else:
         model = Model(cfg, ch=3, nc=nc, anchors=hyp.get("anchors")).to(device)  # create
-        print_trainable_modules(model)
+        # print_trainable_modules(model)
     amp = check_amp(model)  # check AMP
-
+    if opt.scn:
+        # Yolov5's model located at DetectionMode.model
+        # model = SCN(num_alpha=scn_config["num_alpha"], dimensions=scn_config["dimensions"], base_model=model, config=scn_config)
+        setattr(model, "model", SCN(num_alpha=scn_config["num_alpha"], dimensions=scn_config["dimensions"], base_model=model.model, config=scn_config))
+        model.to(device)
+        opt.test_angle = "random"
+        print(f"The following layers are ScnLayer:")
+        for name, module in model.named_modules():
+            if isinstance(module, ScnLayer):
+                print(module)
     # Freeze
     freeze = [f"model.{x}." for x in (freeze if len(freeze) > 1 else range(freeze[0]))]  # layers to freeze
     for k, v in model.named_parameters():
@@ -394,6 +405,7 @@ def train(hyp, opt, device, callbacks):
                     assert opt.test_angle == "random", f"If test_angle is a string, it must be 'random', got {opt.test_angle}"
                     random_angle = random.randint(0, 360)
                     imgs, targets, paths = apply_rotation_augmentation(imgs, targets, paths, random_angle)
+                    hyper_x = transform_angle(random_angle).to(device)
                 else:
                     assert isinstance(opt.test_angle, (int, float)), f"test_angle must be None, 'random', or a number, got {type(opt.test_angle)}"
                     if float(opt.test_angle) != 0:
@@ -430,8 +442,19 @@ def train(hyp, opt, device, callbacks):
 
             # Forward
             with torch.cuda.amp.autocast(amp):
+                if opt.scn:
+                    # print(hyper_x)
+                    model.model.hyper_forward_and_configure(hyper_x)
+                    angle2 = random.randint(0, 360)
+                    beta1 = model.model.hyper_stack(hyper_x)
+                    hyper_x = transform_angle(angle2).to(device)
+                    beta2 = model.model.hyper_stack(hyper_x)
+
                 pred = model(imgs)  # forward
+
                 loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
+                if opt.scn:
+                    loss += pow(cos(beta1, beta2),2)
                 if RANK != -1:
                     loss *= WORLD_SIZE  # gradient averaged between devices in DDP mode
                 if opt.quad:
@@ -487,6 +510,7 @@ def train(hyp, opt, device, callbacks):
                     callbacks=callbacks,
                     compute_loss=compute_loss,
                     test_angle=opt.test_angle,
+                    scn=opt.scn,
                 )
 
             # Update best mAP
@@ -636,7 +660,8 @@ def parse_opt(known=False):
 
     # transformation arguments for SCN
     parser.add_argument("--test-angle", type=str, default=None, help="test angle for rotation augmentation. Could be 'random' or a number")
-
+    parser.add_argument("--scn-config", type=str, default="config_scn_yolov5.json", help="scn config file path")
+    parser.add_argument("--scn", action="store_true", help="use scn model")
     return parser.parse_known_args()[0] if known else parser.parse_args()
 
 
