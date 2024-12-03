@@ -26,10 +26,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import wandb
 
-try:
-    import comet_ml  # must be imported before torch (if installed)
-except ImportError:
-    comet_ml = None
+# try:
+#     import comet_ml  # must be imported before torch (if installed)
+# except ImportError:
+comet_ml = None
 
 import numpy as np
 import torch
@@ -445,12 +445,14 @@ def train(hyp, opt, device, callbacks):
                 if opt.scn:
                     # print(hyper_x)
                     model.model.hyper_forward_and_configure(hyper_x)
-                    angle2 = random.randint(0, 360)
+                    pred = model(imgs)  # forward
                     beta1 = model.model.hyper_stack(hyper_x)
-                    hyper_x = transform_angle(angle2).to(device)
-                    beta2 = model.model.hyper_stack(hyper_x)
+                    angle2 = random.randint(0, 360)
+                    hyper_x2 = transform_angle(angle2).to(device)
+                    beta2 = model.model.hyper_stack(hyper_x2)
 
-                pred = model(imgs)  # forward
+                else:
+                    pred = model(imgs)  # forward
 
                 loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
                 if opt.scn:
@@ -1045,6 +1047,8 @@ if __name__ == "__main__":
 # with patience
 # CUDA_VISIBLE_DEVICES=7 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 5 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7
 # CUDA_VISIBLE_DEVICES=7 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --test-angle random
+
+# CUDA_VISIBLE_DEVICES=7 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 5 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --scn
 
 # naive
 # CUDA_VISIBLE_DEVICES=3 python train.py  --project naive --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --cache ram --optimizer Adam  --workers 6 --batch-size 128 --device 3
