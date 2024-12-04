@@ -1,3 +1,11 @@
+# SCN on YOLOv5
+
+See [README_SCN.md](README_SCN.md) for details.
+
+
+# Original readme of YOLOv5
+
+
 <div align="center">
   <p>
     <a href="https://www.ultralytics.com/events/yolovision" target="_blank">
