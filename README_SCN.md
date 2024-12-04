@@ -28,7 +28,7 @@ CUDA_VISIBLE_DEVICES=7 python train.py  --project SCN --data data/stanford_dogs.
 Train with 120 degree test angle.
 
 ```bash
-# CUDA_VISIBLE_DEVICES=7 python train.py  --project one4one --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --test-angle 120
+CUDA_VISIBLE_DEVICES=7 python train.py  --project one4one --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --test-angle 120
 ```
 
 ### One4all
@@ -36,5 +36,5 @@ Train with 120 degree test angle.
 Train with random agrees from 0 to 360 degree.
 
 ```bash
-# CUDA_VISIBLE_DEVICES=7 python train.py  --project one4all --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --test-angle random
+CUDA_VISIBLE_DEVICES=7 python train.py  --project one4all --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --test-angle random
 ```
