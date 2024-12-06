@@ -227,6 +227,9 @@ def train(hyp, opt, device, callbacks):
         model = Model(cfg, ch=3, nc=nc, anchors=hyp.get("anchors")).to(device)  # create
         # print_trainable_modules(model)
     amp = check_amp(model)  # check AMP
+    print("*"*100)
+    print(model)
+    print("*"*100)
     if opt.scn:
         # Yolov5's model located at DetectionMode.model
         # model = SCN(num_alpha=scn_config["num_alpha"], dimensions=scn_config["dimensions"], base_model=model, config=scn_config)
@@ -236,7 +239,8 @@ def train(hyp, opt, device, callbacks):
         print(f"The following layers are ScnLayer:")
         for name, module in model.named_modules():
             if isinstance(module, ScnLayer):
-                print(module)
+                print(f"{name}: {module}")
+
     # Freeze
     freeze = [f"model.{x}." for x in (freeze if len(freeze) > 1 else range(freeze[0]))]  # layers to freeze
     for k, v in model.named_parameters():

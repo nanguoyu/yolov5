@@ -535,6 +535,14 @@ def img2label_paths(img_paths):
     return [sb.join(x.rsplit(sa, 1)).rsplit(".", 1)[0] + ".txt" for x in img_paths]
 
 
+def img2seg_paths(img_paths):
+    """Generates segmentation file paths from corresponding image file paths by replacing `/images/` with `/segs/` and
+    extension with `.png`.
+    """
+    sa, sb = f"{os.sep}images{os.sep}", f"{os.sep}segs{os.sep}"  # /images/, /segs/ substrings
+    return [sb.join(x.rsplit(sa, 1)).rsplit(".", 1)[0] + ".png" for x in img_paths]
+
+
 class LoadImagesAndLabels(Dataset):
     """Loads images and their corresponding labels for training and validation in YOLOv5."""
 
