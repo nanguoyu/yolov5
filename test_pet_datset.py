@@ -54,11 +54,14 @@ def rotate_bbox(bbox, M):
     x_max, y_max = rotated_points.max(axis=0)
     return int(x_min), int(y_min), int(x_max), int(y_max)
 
-image_path = '/raid/home/dong.wang/data/yolov5_oxford_pet/images/train/56.jpg'
-mask_path = '/raid/home/dong.wang/data/yolov5_oxford_pet/segmentation/train/56.png'
-annotation_path = '/raid/home/dong.wang/data/yolov5_oxford_pet/labels/train/56.txt'
+oxford_pet_root = '/raid/home/dong.wang/data/yolov5_oxford_pet'
 
-mask = cv2.imread(mask_path)  # 读取为三通道图像
+# Load an example image and mask
+image_path = oxford_pet_root + '/images/train/56.jpg'
+mask_path = oxford_pet_root + '/segmentation/train/56.png'
+annotation_path = oxford_pet_root + '/labels/train/56.txt'
+
+mask = cv2.imread(mask_path)
 
 # 检查是否成功读取
 if mask is None:

@@ -177,12 +177,11 @@ for idx in tqdm(range(len(dataset)), desc="Processing Dataset"):
     # if annotation_id>100:
     #     break
 
-    # raise RuntimeError("stop here")
 
 # Save COCO JSON
-coco_json_path = os.path.join(output_root, "coco_annotations.json")
+coco_json_path = os.path.join(output_root, "annotations.json")
 with open(coco_json_path, "w") as f:
     json.dump(coco_json, f)
 
-print(f"COCO JSON saved at {coco_json_path}")
+print(f"COCO FormatJSON saved at {coco_json_path}")
 

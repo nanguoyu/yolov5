@@ -14,7 +14,7 @@ images_dir = os.path.join(output_root, "images")
 labels_dir = os.path.join(output_root, "labels")
 segmentation_dir = os.path.join(output_root, "segmentation")
 
-coco_json_path = os.path.join(output_root, "coco_annotations.json")
+coco_json_path = os.path.join(output_root, "annotations.json")
 # Load COCO JSON
 with open(coco_json_path, "r") as f:
     coco_data = json.load(f)
@@ -133,7 +133,7 @@ for ann in annotations:
 
 # Save the rotated image
 plt.axis('off')
-plt.savefig("rotated_test_coco_format.jpg", bbox_inches='tight', pad_inches=0)
+plt.savefig("test_coco_format_rotated.jpg", bbox_inches='tight', pad_inches=0)
 plt.close()
 
 print("Rotated image with annotations saved as rotated_test_coco_format.jpg")
