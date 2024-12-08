@@ -53,7 +53,11 @@ from models.yolo import Model
 from utils.autoanchor import check_anchors
 from utils.autobatch import check_train_batch_size
 from utils.callbacks import Callbacks
-from utils.dataloaders import create_dataloader
+
+# from utils.dataloaders import create_dataloader
+from utils.segment.dataloaders import create_dataloader
+from utils.segment.augmentations import apply_test_rotation
+
 from utils.downloads import attempt_download, is_url
 from utils.general import (
     LOGGER,
@@ -227,9 +231,9 @@ def train(hyp, opt, device, callbacks):
         model = Model(cfg, ch=3, nc=nc, anchors=hyp.get("anchors")).to(device)  # create
         # print_trainable_modules(model)
     amp = check_amp(model)  # check AMP
-    print("*"*100)
-    print(model)
-    print("*"*100)
+    # print("*"*100)
+    # print(model)
+    # print("*"*100)
     if opt.scn:
         # Yolov5's model located at DetectionMode.model
         # model = SCN(num_alpha=scn_config["num_alpha"], dimensions=scn_config["dimensions"], base_model=model, config=scn_config)
@@ -402,18 +406,37 @@ def train(hyp, opt, device, callbacks):
         if RANK in {-1, 0}:
             pbar = tqdm(pbar, total=nb, bar_format=TQDM_BAR_FORMAT)  # progress bar
         optimizer.zero_grad()
-        for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
+        
+        # print("*"*100)
+        for i, (imgs, targets, paths, _ , masks, segments) in pbar:  # batch -------------------------------------------------------------
             callbacks.run("on_train_batch_start")
             if opt.test_angle is not None:
                 if isinstance(opt.test_angle, str):
                     assert opt.test_angle == "random", f"If test_angle is a string, it must be 'random', got {opt.test_angle}"
                     random_angle = random.randint(0, 360)
-                    imgs, targets, paths = apply_rotation_augmentation(imgs, targets, paths, random_angle)
+                    # print(f"targets.shape:{targets.shape}")
+                    # print(f"random_angle:{random_angle}")
+                    # print(f"len(segments):{len(segments)}, len(masks):{len(masks)}, len(imgs):{len(imgs)}, len(targets):{len(targets)}, len(paths):{len(paths)}")
+                    for j in range(len(imgs)):
+                        if len(segments[j]) == 0:
+                            print(f"j:{j}")
+                            print(f"segments[j] is empty")
+                            print(f"path:{paths[j]}")
+                        img_np, targets_np, segments_np = apply_test_rotation(im=imgs[j].cpu().permute(1, 2, 0).numpy(), targets=targets[j].cpu().numpy()[1:], segments=segments[j], test_angle=random_angle, return_segments=True)
+                        imgs[j] = torch.from_numpy(img_np).permute(2, 0, 1).to(device)
+                        # print(f"targets_np.shape:{targets_np.shape}")
+                        # print(targets_np)
+                        targets[j][1:] = torch.from_numpy(targets_np[0]).to(device)
+                        segments[j] = segments_np
                     hyper_x = transform_angle(random_angle).to(device)
                 else:
                     assert isinstance(opt.test_angle, (int, float)), f"test_angle must be None, 'random', or a number, got {type(opt.test_angle)}"
                     if float(opt.test_angle) != 0:
-                        imgs, targets, paths = apply_rotation_augmentation(imgs, targets, paths, float(opt.test_angle))
+                        for j in range(len(imgs)):
+                            img_np, targets_np, segments_np = apply_test_rotation(im=imgs[j].cpu().permute(1, 2, 0).numpy(), targets=targets[j].cpu().numpy()[1:], segments=segments[j], test_angle=float(opt.test_angle), return_segments=True)
+                            imgs[j] = torch.from_numpy(img_np).permute(2, 0, 1).to(device)
+                            targets[j][1:] = torch.from_numpy(targets_np[0]).to(device)
+                            segments[j] = segments_np
             
             # ---------------Have a look at one batch of transformed images---------------
             # original_imgs = imgs.clone()
@@ -591,7 +614,14 @@ def train(hyp, opt, device, callbacks):
     torch.cuda.empty_cache()
     return results
 
-
+def parse_test_angle(value):
+    try:
+        return float(value)
+    except ValueError:
+        if value == "random":
+            return value
+        raise argparse.ArgumentTypeError(f"Invalid value for --test-angle: {value}")
+    
 def parse_opt(known=False):
     """
     Parse command-line arguments for YOLOv5 training, validation, and testing.
@@ -665,7 +695,7 @@ def parse_opt(known=False):
     parser.add_argument("--ndjson-file", action="store_true", help="Log ndjson to file")
 
     # transformation arguments for SCN
-    parser.add_argument("--test-angle", type=str, default=None, help="test angle for rotation augmentation. Could be 'random' or a number")
+    parser.add_argument("--test-angle", type=parse_test_angle, default=None, help="test angle for rotation augmentation. Could be 'random' or a number")
     parser.add_argument("--scn-config", type=str, default="config_scn_yolov5.json", help="scn config file path")
     parser.add_argument("--scn", action="store_true", help="use scn model")
     return parser.parse_known_args()[0] if known else parser.parse_args()
@@ -687,8 +717,8 @@ def main(opt, callbacks=Callbacks()):
         For detailed usage, refer to:
         https://github.com/ultralytics/yolov5/tree/master/models
     """
-    run = wandb.init(project=f"yolov5_stanford_dogs", name=f"{opt.project}", entity="naguoyu", 
-               config={"dataset":"stanford_dogs"},
+    run = wandb.init(project=f"yolov5_oxford_pet", name=f"{opt.project}", entity="naguoyu", 
+               config={"dataset":"oxford_pet"},
                )
     
     if RANK in {-1, 0}:

@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from ..augmentations import box_candidates
-from ..general import resample_segments, segment2box
+from ..general import resample_segments, segment2box, xywhn2xyxy, xyxy2xywhn
 
 
 def mixup(im, labels, segments, im2, labels2, segments2):
@@ -96,5 +96,99 @@ def random_perspective(
         targets = targets[i]
         targets[:, 1:5] = new[i]
         new_segments = np.array(new_segments)[i]
+
+    return im, targets, new_segments
+
+def apply_test_rotation(
+    im, targets=(), segments=(), test_angle=0, return_segments=False
+):
+    # torchvision.transforms.RandomAffine(degrees=(-10, 10), translate=(0.1, 0.1), scale=(0.9, 1.1), shear=(-10, 10))
+    # targets = [cls, xyxy]
+    """Applies random perspective transformation to an image, modifying the image and corresponding labels."""
+    # Super important: this function is desgined to apply a rotation during training/testing not dataloader!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # print(f"im.shape:{im.shape}")
+    
+    height = im.shape[0]  # shape(h,w,c)
+    width = im.shape[1]
+
+    # Center
+    C = np.eye(3)
+    C[0, 2] = -im.shape[1] / 2  # x translation (pixels)
+    C[1, 2] = -im.shape[0] / 2  # y translation (pixels)
+
+    # Perspective
+    P = np.eye(3)
+    P[2, 0] = 0  # x perspective (about y)
+    P[2, 1] = 0  # y perspective (about x)
+    # Rotation and Scale
+    R = np.eye(3)
+    a = float(test_angle)
+    # a += random.choice([-180, -90, 0, 90])  # add 90deg rotations to small rotations
+    # s = 2 ** random.uniform(-scale, scale)
+    s = 1
+    R[:2] = cv2.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
+
+    # Shear
+    S = np.eye(3)
+    S[0, 1] = 0  # x shear (deg)
+    S[1, 0] = 0  # y shear (deg)
+    # Translation
+    T = np.eye(3)
+    T[0, 2] = 0.5*width  # x translation (pixels) set to zero
+    T[1, 2] = 0.5*height  # y translation (pixels) set to zero
+
+    # Combined rotation matrix
+    M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
+    if  (M != np.eye(3)).any():  # image changed
+        # raise RuntimeError("apply affine transformation stop here")
+        im = cv2.warpAffine(im, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
+
+    # Visualize
+    # import matplotlib.pyplot as plt
+    # ax = plt.subplots(1, 2, figsize=(12, 6))[1].ravel()
+    # ax[0].imshow(im[:, :, ::-1])  # base
+    # ax[1].imshow(im2[:, :, ::-1])  # warped
+    perspective = 0
+    # Transform label coordinates
+    # print("")
+    # print(f"height:{height}, width:{width}")
+    # print(f"rotation angle:{a}")
+    targets = np.expand_dims(targets, axis=0)
+    # print(f"targets:{targets}")
+    targets[:, 1:] = xywhn2xyxy(targets[:, 1:], width, height, padw=0, padh=0)
+    # print(f"targets after xywhn2xyxy:{targets}")
+
+    n = len(targets)
+    new_segments = []
+    if n:
+        new = np.zeros((n, 4))
+        # segments = np.expand_dims(segments, axis=0)
+        pre_segments = segments
+        segments = resample_segments(segments)  # upsample
+        if len(segments) == 0:
+            print("segments is empty")
+            print(f"pre_segments:{pre_segments}")
+        for i, segment in enumerate(segments):
+            if i>=1:
+                break # only apply to the first segment
+            xy = np.ones((len(segment), 3))
+            xy[:, :2] = segment
+            xy = xy @ M.T  # transform
+            xy = xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]  # perspective rescale or affine            
+
+            # clip
+            new[i] = segment2box(xy, width, height)
+            new_segments.append(xy)
+        # filter candidates
+        # print(f"new:{new}")
+        # print(new_segments)
+        i = box_candidates(box1=targets[:, 1:5].T * s, box2=new.T, area_thr=0.01) # todo: corecct this
+        i = [True] * len(new)
+        # print(f"i:{i}")
+        targets = targets[i]
+        targets[:, 1:5] = new[i]
+        new_segments = np.array(new_segments)[i]
+    
+    targets[:, 1:5] = xyxy2xywhn(targets[:, 1:5], w=width, h=height, clip=True, eps=1e-3)
 
     return im, targets, new_segments

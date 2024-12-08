@@ -17,17 +17,18 @@ import cv2
 dataset_root = "/raid/home/dong.wang/data/oxford_iiit_pet"
 output_root = "/raid/home/dong.wang/data/yolov5_oxford_pet"
 images_dir = os.path.join(output_root, "images")
-labels_dir = os.path.join(output_root, "labels")
+# labels_dir = os.path.join(output_root, "labels")
 segmentation_dir = os.path.join(output_root, "segmentation")
+annotations_dir = os.path.join(output_root, "annotations")
 
 # Create target directories
 os.makedirs(os.path.join(images_dir, "train"), exist_ok=True)
 os.makedirs(os.path.join(images_dir, "val"), exist_ok=True)
-os.makedirs(os.path.join(labels_dir, "train"), exist_ok=True)
-os.makedirs(os.path.join(labels_dir, "val"), exist_ok=True)
+# os.makedirs(os.path.join(labels_dir, "train"), exist_ok=True)
+# os.makedirs(os.path.join(labels_dir, "val"), exist_ok=True)
 os.makedirs(os.path.join(segmentation_dir, "train"), exist_ok=True)
 os.makedirs(os.path.join(segmentation_dir, "val"), exist_ok=True)
-
+os.makedirs(annotations_dir, exist_ok=True)
 # Load OxfordIIITPet dataset
 dataset = OxfordIIITPet(
     root=dataset_root,
@@ -104,24 +105,35 @@ coco_json = {
     "categories": []
 }
 
-# Add categories to COCO JSON
+# Dynamically generate categories from the dataset
 for idx, cls in enumerate(classes):
     coco_json["categories"].append({
-        "id": idx,
+        "id": idx + 1,  # Ensure IDs start from 1
         "name": cls,
-        "supercategory": "pet"
+        "supercategory": "pet"  # You can adjust this based on your dataset
     })
 
 annotation_id = 0
 
+# Initialize a dictionary to keep track of the index for each class
+class_counters = {cls: 0 for cls in classes}
+
 # Organize dataset
 for idx in tqdm(range(len(dataset)), desc="Processing Dataset"):
     image, (category, segmentation) = dataset[idx]
-    class_idx = int(category)
+    class_idx = int(category)+1
     split = "train" if random.random() > 0.2 else "val"
-    image_path = os.path.join(images_dir, split, f"{idx}.jpg")
-    label_path = os.path.join(labels_dir, split, f"{idx}.txt")
-    segmentation_path = os.path.join(segmentation_dir, split, f"{idx}.png")
+    class_name = classes[int(category)]
+    
+    # Get the current index for this class and increment the counter
+    class_index = class_counters[class_name]
+    class_counters[class_name] += 1
+    
+    file_name = f"{class_name}_{class_index}"
+    
+    image_path = os.path.join(images_dir, split, f"{file_name}.jpg".replace(" ", "_"))
+    # label_path = os.path.join(labels_dir, split, f"{class_name}_{class_index}.txt")
+    segmentation_path = os.path.join(segmentation_dir, split, f"{file_name}.png".replace(" ", "_"))
 
     # Save image
     image.save(image_path)
@@ -136,7 +148,7 @@ for idx in tqdm(range(len(dataset)), desc="Processing Dataset"):
     # Add image info to COCO JSON
     image_info = {
         "id": int(idx),
-        "file_name": f"{idx}.jpg",
+        "file_name": f"{file_name}.jpg".replace(" ", "_"),
         "height": int(image.height),
         "width": int(image.width)
     }
@@ -179,9 +191,9 @@ for idx in tqdm(range(len(dataset)), desc="Processing Dataset"):
 
 
 # Save COCO JSON
-coco_json_path = os.path.join(output_root, "annotations.json")
+coco_json_path = os.path.join(annotations_dir, "annotations.json")
 with open(coco_json_path, "w") as f:
     json.dump(coco_json, f)
 
-print(f"COCO FormatJSON saved at {coco_json_path}")
+print(f"COCO Format JSON saved at {coco_json_path}")
 

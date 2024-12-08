@@ -22,7 +22,6 @@ Change `D` and which layers you want to be SCN in `config_scn_yolov5.json` and r
 CUDA_VISIBLE_DEVICES=7 python train.py  --project SCN --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 5 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --scn
 ```
 
-
 ### One4one
 
 Train with 120 degree test angle.
@@ -37,4 +36,28 @@ Train with random agrees from 0 to 360 degree.
 
 ```bash
 CUDA_VISIBLE_DEVICES=7 python train.py  --project one4all --data data/stanford_dogs.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-stanford-dog.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --test-angle random
+```
+
+## Oxford Pet
+
+### evolve
+
+```bash
+CUDA_VISIBLE_DEVICES=3 python train.py --project yolov5_oxford_pet_search_0 --data data/oxford_pet.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 10 --cache ram --optimizer Adam  --workers 16 --batch-size 128 --device 3 --evolve
+```
+
+### SCN
+```bash
+CUDA_VISIBLE_DEVICES=7 python train.py  --project oxford_pet --data data/oxford_pet.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-oxford-pet.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --scn
+```
+
+
+### One4all
+```bash
+CUDA_VISIBLE_DEVICES=7 python train.py  --project oxford_pet --data data/oxford_pet.yaml --cfg yolov5s.yaml --weights '' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-oxford-pet.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --test-angle random
+```
+
+### One4one
+```bash
+CUDA_VISIBLE_DEVICES=7 python train.py  --project oxford_pet --data data/oxford_pet.yaml --cfg yolov5s.yaml --weights 'yolov5s.pt' --img 320 --epochs 100 --patience 10 --hyp data/hyps/hyp.scratch-low-oxford-pet.yaml --cache ram --optimizer Adam  --workers 12 --batch-size 128  --device 7 --test-angle 0
 ```

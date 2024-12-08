@@ -263,3 +263,5 @@ fabric.properties
 
 # SCN
 !config_scn_yolov5.json
+oxford_pet/
+weights/

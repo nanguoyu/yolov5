@@ -38,6 +38,7 @@ def create_dataloader(
     mask_downsample_ratio=1,
     overlap_mask=False,
     seed=0,
+    test_angle=None
 ):
     """Creates a dataloader for training, validating, or testing YOLO models with various dataset options."""
     if rect and shuffle:
@@ -60,6 +61,7 @@ def create_dataloader(
             downsample_ratio=mask_downsample_ratio,
             overlap=overlap_mask,
             rank=rank,
+            test_angle=test_angle,
         )
 
     batch_size = min(batch_size, len(dataset))
@@ -105,6 +107,7 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
         overlap=False,
         rank=-1,
         seed=0,
+        test_angle=None,
     ):
         """Initializes the dataset with image, label, and mask loading capabilities for training/testing."""
         super().__init__(
@@ -126,7 +129,8 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
         )
         self.downsample_ratio = downsample_ratio
         self.overlap = overlap
-
+        LoadImagesAndLabelsAndMasks.test_angle = test_angle
+        
     def __getitem__(self, index):
         """Returns a transformed item from the dataset at the specified index, handling indexing and image weighting."""
         index = self.indices[index]  # linear, shuffled, or image_weights
@@ -168,16 +172,20 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], ratio[0] * w, ratio[1] * h, padw=pad[0], padh=pad[1])
 
             if self.augment:
-                img, labels, segments = random_perspective(
-                    img,
-                    labels,
-                    segments=segments,
-                    degrees=hyp["degrees"],
-                    translate=hyp["translate"],
-                    scale=hyp["scale"],
-                    shear=hyp["shear"],
-                    perspective=hyp["perspective"],
-                )
+                pass # as we apply transformation for scn, so no other augmentation is needed
+                # assert len(segments) > 0, f"[Before augmentation] segments is empty, {self.im_files[index]}"
+                # img, labels, segments = random_perspective(
+                #     img,
+                #     labels,
+                #     segments=segments,
+                #     degrees=hyp["degrees"],
+                #     translate=hyp["translate"],
+                #     scale=hyp["scale"],
+                #     shear=hyp["shear"],
+                #     perspective=hyp["perspective"],
+                # )
+                # assert len(segments) > 0, f"[After augmentation] segments is empty, {self.im_files[index]}"
+
 
         nl = len(labels)  # number of labels
         if nl:
@@ -228,12 +236,11 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
         labels_out = torch.zeros((nl, 6))
         if nl:
             labels_out[:, 1:] = torch.from_numpy(labels)
-
         # Convert
         img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
-
-        return (torch.from_numpy(img), labels_out, self.im_files[index], shapes, masks)
+        assert len(segments) > 0, f"segments is empty, {self.im_files[index]}"
+        return (torch.from_numpy(img), labels_out, self.im_files[index], shapes, masks, segments)
 
     def load_mosaic(self, index):
         """Loads 1 image + 3 random images into a 4-image YOLOv5 mosaic, adjusting labels and segments accordingly."""
@@ -298,12 +305,27 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
     @staticmethod
     def collate_fn(batch):
         """Custom collation function for DataLoader, batches images, labels, paths, shapes, and segmentation masks."""
-        img, label, path, shapes, masks = zip(*batch)  # transposed
+        # if LoadImagesAndLabelsAndMasks.test_angle is not None:
+        #     if isinstance(LoadImagesAndLabelsAndMasks.test_angle, str):
+        #         assert LoadImagesAndLabelsAndMasks.test_angle == "random", f"If test_angle is a string, it must be 'random', got {LoadImagesAndLabelsAndMasks.test_angle}"
+        #         angle = random.randint(0, 360)
+        #     else:
+        #         assert isinstance(LoadImagesAndLabelsAndMasks.test_angle, (int, float)), f"test_angle must be None, 'random', or a number, got {type(LoadImagesAndLabelsAndMasks.test_angle)}"
+        #         angle = int(LoadImagesAndLabelsAndMasks.test_angle)
+        #     if angle != 0:
+        #         rotated_batch = []
+        #         for img, label, path, shape, mask in batch:
+        #             # Apply the rotation function
+        #             img, label, segments = apply_test_rotation(im=img, targets=label, segments=mask, test_angle=angle, return_segments=True)
+        #             rotated_batch.append((img, label, path, shape, segments))
+        #         batch = rotated_batch
+
+        img, label, path, shapes, masks, segments = zip(*batch)  # transposed
         batched_masks = torch.cat(masks, 0)
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
-        return torch.stack(img, 0), torch.cat(label, 0), path, shapes, batched_masks
-
+        # print(f"len(torch.stack(img, 0)):{len(torch.stack(img, 0))} | len(torch.cat(label, 0)):{len(torch.cat(label, 0))} | len(path):{len(path)} | len(shapes):{len(shapes)} | len(batched_masks):{len(batched_masks)} | len(segments):{len(segments)}")
+        return torch.stack(img, 0), torch.cat(label, 0), path, shapes, batched_masks, segments
 
 def polygon2mask(img_size, polygons, color=1, downsample_ratio=1):
     """

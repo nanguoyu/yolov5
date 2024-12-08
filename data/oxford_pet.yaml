@@ -1,7 +1,7 @@
 
-path: /raid/home/dong.wang/data/yolov5_oxford_pet
-train: images/train
-val: images/val
+path: /raid/home/dong.wang/data/oxford_pet_roboflow
+train: train/images
+val: valid/images
 
 nc: 37
 

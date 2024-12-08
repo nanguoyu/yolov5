@@ -30,6 +30,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from scn_utlis import apply_rotation_augmentation, save_comparison_images, transform_angle
+from utils.segment.augmentations import apply_test_rotation
+
 import random
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -329,7 +331,7 @@ def run(
     jdict, stats, ap, ap_class = [], [], [], []
     callbacks.run("on_val_start")
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
-    for batch_i, (im, targets, paths, shapes) in enumerate(pbar):
+    for batch_i, (im, targets, paths, shapes, masks, segments) in enumerate(pbar):
         callbacks.run("on_val_batch_start")
 
         if test_angle is not None:
@@ -337,13 +339,24 @@ def run(
                 assert test_angle == "random", f"If test_angle is a string, it must be 'random', got {test_angle}"
                 # apply random rotation augmentation
                 random_angle = random.randint(0, 360)
-                im, targets, paths = apply_rotation_augmentation(im, targets, paths, random_angle)
+                # im, targets, paths = apply_rotation_augmentation(im, targets, paths, random_angle)
+                for j in range(len(im)):
+                    img_np, targets_np, segments_np = apply_test_rotation(im=im[j].cpu().permute(1, 2, 0).numpy(), targets=targets[j].cpu().numpy()[1:], segments=segments[j], test_angle=random_angle, return_segments=True)
+                    im[j] = torch.from_numpy(img_np).permute(2, 0, 1).to(device)
+                    targets[j][1:] = torch.from_numpy(targets_np[0]).to(device)
+                    segments[j] = segments_np
                 if scn:
                     hyper_x = transform_angle(random_angle).to(device)
             else:
                 assert isinstance(test_angle, (int, float)), f"test_angle must be None, 'random', or a number, got {type(test_angle)}"
                 # apply rotation augmentation
-                im, targets, paths = apply_rotation_augmentation(im, targets, paths, test_angle)
+                # im, targets, paths = apply_rotation_augmentation(im, targets, paths, test_angle)
+                if float(test_angle) != 0:
+                    for j in range(len(im)):
+                        img_np, targets_np, segments_np = apply_test_rotation(im=im[j].cpu().permute(1, 2, 0).numpy(), targets=targets[j].cpu().numpy()[1:], segments=segments[j], test_angle=float(test_angle), return_segments=True)
+                        im[j] = torch.from_numpy(img_np).permute(2, 0, 1).to(device)
+                        targets[j][1:] = torch.from_numpy(targets_np[0]).to(device)
+                        segments[j] = segments_np
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)
